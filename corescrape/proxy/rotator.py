@@ -22,27 +22,36 @@ This file is critical and must be present with each line containing a message th
 if present in the HTML page, tells the rotator to dispose that proxy and carry on.
 More sophisticated pages may return a captcha.
 
+Single proxy API can also be used by configuring the file `apisingleproxy.txt`.
+This type of API returns a single ip when requested, usually in JSON format. Along
+with the informed api URL, the user must pass a function to correctly parse the
+response.
+
 All files must be located in the `conf/` dir.
 
 IMPORTANT:
 * Make sure you ALWAYS use ELITE proxies, otherwise you are exposed
 """
 
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, multiple-statements
 
-from random import choice
+from random import choice, shuffle
+from queue import PriorityQueue
+from warnings import warn
 
 import requests
+
+from . import proxy as proxlib
 
 class Rotator:
     """
     This class implements a proxy rotation service for requests.
 
     Every request sent to this class will be dispatched through a proxy
-    selected from a priority list.
+    selected from a priority queue.
     Proxies are collected from the apis informed in the file.
     In order to work, before making requests the method `retrieve` must be
-    called to collect proxies and organize them in a priority list.
+    called to collect proxies and organize them in a priority queue.
     Initially all proxies will be listed as normal but as their score change,
     one proxy can be up or downgraded to high/low priority, respectively.
     """
@@ -64,7 +73,7 @@ class Rotator:
         with open(conf.format('ignoremsgs'), 'r') as _file:
             self.ignoremsgs = _file.readlines()
 
-        self.proxies = None
+        self.proxies = PriorityQueue()
 
     def __get_usr_agent(self):
         """Returns a random user agent."""
@@ -107,4 +116,15 @@ class Rotator:
             else:
                 proxies += a
 
-        self.proxies = proxies
+        ignore = ['', ' ', ':', ' : ', ' :', ': ']
+        proxies = list({x for x in proxies if x not in ignore})
+        shuffle(proxies)
+        for proxy in proxies:
+            p = proxlib.Proxy(proxy)
+            if p: self.proxies.put(p)
+
+    def request(self, url):
+        """
+        Make a request using a proxy selected from the priority queue and a
+        random user agent if available.
+        """
