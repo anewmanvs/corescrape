@@ -24,11 +24,17 @@ class Proxy:
 
         self.priority = 10
 
+    def requests_formatted(self):
+        """Returns the proxy in requests formatting."""
+
+        return {protocol: self.address for protocol in ['http', 'https']}
+
     def add_up_try(self):
         """Add up a try"""
 
         self.numtries += 1
         self.down_priority()
+        return self.numtries
 
     def up_priority(self):
         """Set higher priority to this proxy"""

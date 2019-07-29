@@ -2,9 +2,11 @@
 Proxy Rotator
 
 Reads from an online public proxy API and stores the proxies in a rotation list.
-The APIs often return the content in a single param JSON, each line being an IP:PORT.
-Please store URLs for APIs in the file `apilist.txt`, each line containing a single
-URL starting with protocol like 'https://'.
+The APIs often return the content in a single param JSON, each line being an
+IP:PORT. Please store URLs for APIs in the file `apilist.txt`, each line containing
+a single URL starting with protocol like 'https://'. Please note that the access
+to this API is not covered by any proxy. So scraping the same API owners is not a
+very good idea since they might use their own servers to locate you.
 
 As well as proxies, this class also rotates user agents, if available. Servers can
 identify bots, crawlers and spiders even using multiple proxies if a common pattern
@@ -35,6 +37,7 @@ IMPORTANT:
 
 # pylint: disable=invalid-name, multiple-statements
 
+from os.path import dirname, abspath
 from random import choice, shuffle
 from queue import PriorityQueue
 from warnings import warn
@@ -42,6 +45,21 @@ from warnings import warn
 import requests
 
 from . import proxy as proxlib
+
+def is_set(event):
+    """Check if a valid event is set."""
+
+    return event is not None and event.is_set()
+
+def set_event(event):
+    """Set a valid event."""
+
+    if event is not None:
+        event.set()
+
+def strip(l):
+    """Strip strings from a list."""
+    return list(map(lambda x: x.strip(), l))
 
 class Rotator:
     """
@@ -54,36 +72,77 @@ class Rotator:
     called to collect proxies and organize them in a priority queue.
     Initially all proxies will be listed as normal but as their score change,
     one proxy can be up or downgraded to high/low priority, respectively.
+
+    Params:
+        maxtriesproxy: int indicating the max number of tries one proxy will get
+        timeout: int pointing max timeout used in recurrent requests
     """
 
-    def __init__(self):
+    def __init__(self, maxtriesproxy=2, timeout=3):
         """Constructor."""
 
-        conf = '../conf/{}.txt'
+        conf = abspath(dirname(__file__) + '/..') + '/conf/{}.txt'
 
         with open(conf.format('apilist'), 'r') as _file:
-            self.apilist = _file.readlines()
+            self.apilist = strip(_file.readlines())
 
         try:
             with open(conf.format('usragnt'), 'r') as _file:
-                self.usragnts = _file.readlines()
+                self.usragnts = strip(_file.readlines())
         except FileNotFoundError:
             self.usragnts = None
 
         with open(conf.format('ignoremsgs'), 'r') as _file:
-            self.ignoremsgs = _file.readlines()
+            self.ignoremsgs = strip(_file.readlines())
+
+        with open(conf.format('stdconf'), 'r') as _file:
+            self.stdusrgnt = _file.read().strip()
 
         self.proxies = PriorityQueue()
+        self.maxtriesproxy = maxtriesproxy
+        self.timeout = timeout
 
     def __get_usr_agent(self):
         """Returns a random user agent."""
 
         if not self.usragnts:
-            return None
+            return {'User-Agent': self.stdusrgnt}
 
         return {'User-Agent': choice(self.usragnts)}
 
-    def retrieve(self, sep='\n', parse_func=None):
+    def __get_proxy(self):
+        """Returns a proxy from the priority list."""
+
+        if self.proxies.empty():
+            return None
+
+        return self.proxies.get()
+
+    @staticmethod
+    def proxy_exceptions():
+        """Returns proxy exceptions to filter in this class."""
+
+        _excp = requests.exceptions
+
+        return (_excp.ProxyError, _excp.Timeout)
+
+    @staticmethod
+    def conn_exceptions():
+        """Returns connection exceptions to filter in this class."""
+
+        _excp = requests.exceptions
+
+        return (_excp.SSLError, _excp.InvalidHeader, _excp.ConnectionError)
+
+    @staticmethod
+    def comm_exceptions():
+        """Returns communication exceptions to filter in this class."""
+
+        _excp = requests.exceptions
+
+        return _excp.ChunkedEncodingError
+
+    def retrieve(self, sep='\n', parse_func=None, timeout=30):
         """
         Retrieve the content from the APIs.
 
@@ -97,6 +156,7 @@ class Rotator:
             sep: str pointing the separator used to split the return content
                 into proxies formatted like IP:PORT
             parse_fun: python function that returns a list
+            timeout: int max time in seconds to wait for a response
 
         Returns:
             None
@@ -108,8 +168,8 @@ class Rotator:
 
         proxies = []
         for api in self.apilist:
-            a = requests.get(
-                api, headers=self.__get_usr_agent()).text.split(sep)
+            a = requests.get(api, headers=self.__get_usr_agent(), timeout=timeout)
+            a = list(map(lambda x: x.strip(), a.text.split(sep)))
 
             if callable(parse_func):
                 proxies += parse_func(a)
@@ -123,8 +183,54 @@ class Rotator:
             p = proxlib.Proxy(proxy)
             if p: self.proxies.put(p)
 
-    def request(self, url):
+    def request(self, url, event):
         """
         Make a request using a proxy selected from the priority queue and a
         random user agent if available.
+
+        Params:
+            url: str representation of a URL to access. URL must be escaped.
+            event: object event to trigger interruptions between eventual threads
         """
+
+        while True:
+            if is_set(event): break
+
+            page = None
+            curproxy = self.__get_proxy()
+            if not curproxy:
+                set_event(event)
+                break
+            uagnt = self.__get_usr_agent()
+
+            print('Trying proxy {}'.format(curproxy))
+
+            try:
+                page = requests.get(url, headers=uagnt,
+                                    proxies=curproxy.requests_formatted(),
+                                    timeout=self.timeout)
+            except Rotator.proxy_exceptions():
+                tries = curproxy.add_up_try()
+                if tries < self.maxtriesproxy:
+                    self.proxies.put(curproxy)
+                continue
+            except Rotator.conn_exceptions():
+                continue
+            except Rotator.comm_exceptions():
+                continue
+
+            if page is None:
+                # guess this should not happen because an exception was probably
+                # thrown and catched before
+                warn('Unexpected return from requests.get')
+                continue
+
+            if not any([ignoremsg in page.text for ignoremsg in self.ignoremsgs]):
+                # did not find any token pointing the ban of this proxy
+                curproxy.up_priority()
+                self.proxies.put(curproxy)
+                return page
+            else:
+                print('got ignored')
+
+        return None
