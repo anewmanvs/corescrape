@@ -9,9 +9,11 @@ import re
 
 from lxml import html
 
-# pylint: disable=invalid-name
+from .. import core
 
-class SimpleParser:
+# pylint: disable=invalid-name, too-few-public-methods
+
+class SimpleParser(core.CoreScrape):
     """
     Simple Parser.
 
@@ -24,7 +26,7 @@ class SimpleParser:
         rgflags: enum 'RegexFlag' from re. Pass multiple flags using bitwise (|)
     """
 
-    def __init__(self, xpath, regex=None, rgflags=0):
+    def __init__(self, xpath, regex=None, rgflags=0, logoperator=None):
         """Constructor."""
 
         self.xpath = xpath
@@ -32,16 +34,25 @@ class SimpleParser:
         self.rgfgs = rgflags
         self.brg = bool(regex)
 
+        super().__init__(logoperator=logoperator)
+
     def __apply_bool_rg(self, h):
-        """Internal gauge to apply regex."""
+        """Internal controller to apply regex."""
 
-        return self.brg and re.search(self.regex, h, self.rgfgs) is not None
+        if self.brg:
+            return re.search(self.regex, h, self.rgfgs) is not None
+        return True
 
-    def parse(self, response):
+    def parse(self, response, threadid=None):
         """From a requests.model.Response, applies the xpath and retrieves data."""
 
         if not response:
+            self.__log('Parser got invalid response [Thread {}]'.format(threadid))
             return []
 
         hs = html.fromstring(response.text).xpath(self.xpath)
-        return [h for h in hs if self.__apply_bool_rg(h)]
+        self.__log('Collected {} from page using xpath {} [Thread {}]'.format(
+            len(hs), self.xpath, threadid))
+        hs = [h for h in hs if self.__apply_bool_rg(h)]
+        self.__log('After regex, {} remaining [Thread {}]'.format(len(hs), threadid))
+        return hs
