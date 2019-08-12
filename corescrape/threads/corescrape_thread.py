@@ -8,12 +8,11 @@ from warnings import warn
 from queue import Queue
 from threading import Thread
 
-from numpy import ndarray
-
 from . import corescrape_event
 from .. import core
 
-# pylint: disable=invalid-name, too-few-public-methods
+# pylint: disable=invalid-name, too-few-public-methods, multiple-statements
+# pylint: disable=bare-except
 
 class CoreScrapeThread(core.CoreScrape):
     """Core Scrape Thread."""
@@ -66,8 +65,33 @@ class CoreScrapeThread(core.CoreScrape):
     def __iterate(self, threaid, data, *args):
         """Do iterations in threads, each one calling the passed code."""
 
+        self.__log('Starting iteration in threaid {}'.format(threaid))
+        res = []
+        for url in data:
+            # the reason here does not matter. If it is set, break out
+            if self.event.is_set(): break
+            try:
+                page = self.rotator.request(url, self.event, threaid=threaid)
+            except:
+                self.event.state.set_ABORT_THREAD()
+                break
+
+            if page is None: continue  # not able to retrieve the page
+
+            if self.parser is None:
+                res.append(page)
+            else:
+                _res = self.parser.parse(page, threaid=threaid)
+                if not _res: continue  # no info collected, must go on
+                self.__log('URL {} collected. Thread {}'.format(url, threaid))
+                res += _res
+        return res
+
     def start_threads(self, to_split_params, *fixed_args):
         """Starts threads."""
+
+        def test_if_urls(p):
+            return [a.startswith('http://') or a.startswith('https://') for a in p]
 
         # pylint: disable=no-value-for-parameter
 
@@ -75,7 +99,11 @@ class CoreScrapeThread(core.CoreScrape):
         if abort:
             return False
 
+        if not all(test_if_urls(to_split_params)):
+            raise ValueError('List of strings must begin with protocol')
+
         self.threads = []
+        self.event.state.set_EXECUTING()
         for threadid, split in enumerate(self.__split(to_split_params)):
             pargs = (threadid, split, *fixed_args)
             thread = Thread(
@@ -101,6 +129,10 @@ class CoreScrapeThread(core.CoreScrape):
 
     def join_responses(self):
         """Join responses from the threads."""
+
+        abort = self.__warn_wait_threads()
+        if abort:
+            return []
 
         res = []
         while not self.queue.empty():

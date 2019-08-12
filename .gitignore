@@ -1,5 +1,6 @@
 # No texts in this repo
 *.txt
+*.csv
 
 # Byte-compiled / optimized / DLL files
 *__pycache__/*
