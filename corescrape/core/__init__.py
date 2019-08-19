@@ -4,7 +4,7 @@ Defines the base class for this package.
 Imports log operator and takes a log or None
 """
 
-from .. import logs
+import logs
 
 # pylint: disable=too-few-public-methods
 
@@ -24,7 +24,7 @@ class CoreScrape:
         if condition:
             raise TypeError("Param 'logoperator' must be a 'LogOperator'")
 
-    def __log(self, msg, tmsg=None):
+    def log(self, msg, tmsg=None):
         """Safely writes into log."""
 
         if self.logoperator:
