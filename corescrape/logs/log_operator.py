@@ -20,11 +20,11 @@ class LogOperator:
         """Constructor."""
 
         self.filename = file if file else abspath(dirname(__file__)) + '/log.txt'
-        self.__file = open(self.filename, 'w+')
+        self.__file = open(self.filename, 'a+')
         self.verbose = verbose
         self.buffer = ''
         self.count = 0
-        self.dtformat = '%Y-%m-%d %H:%M:%s:%f'
+        self.dtformat = '%Y-%m-%d %H:%M:%S:%f'
         self.open = True
 
     @staticmethod
@@ -58,7 +58,6 @@ class LogOperator:
         """Close file."""
 
         if self.open:
-            self.comm('Closing file')
             self.__file.close()
             self.open = False
 
