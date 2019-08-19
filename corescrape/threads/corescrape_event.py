@@ -9,11 +9,11 @@ from traceback import print_exc
 from inspect import getmembers
 from threading import Event
 
-from .. import core
+from core import CoreScrape
 
 # pylint: disable=invalid-name
 
-class States(core.CoreScrape):
+class States(CoreScrape):
     """Feasible thread states."""
 
     STARTED = 1
@@ -87,7 +87,7 @@ class States(core.CoreScrape):
 
             if kstate in self.dstates.keys():
                 self.curstate = self.dstates[kstate]
-                self.__log('State changed to {}'.format(self))
+                self.log('State changed to {}'.format(self))
                 self.traceback()
                 return True
             return False

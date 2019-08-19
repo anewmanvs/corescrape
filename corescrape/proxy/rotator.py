@@ -5,7 +5,7 @@ Reads from an online public proxy API and stores the proxies in a rotation list.
 The APIs often return the content in a single param JSON, each line being an
 IP:PORT. Please store URLs for APIs in the file `apilist.txt`, each line containing
 a single URL starting with protocol like 'https://'. Please note that the access
-to this API is not covered by any proxy. So scraping the same API owners is not a
+to this API is not covered by any proxy. So scrapi  ng the same API owners is not a
 very good idea since they might use their own servers to locate you.
 
 As well as proxies, this class also rotates user agents, if available. Servers can
@@ -45,8 +45,8 @@ from warnings import warn
 import requests
 
 from . import proxy as proxlib
-from .. import core
-from .. import threads
+from core import CoreScrape
+from threads.corescrape_event import CoreScrapeEvent
 
 # pylint: disable=too-many-instance-attributes
 
@@ -67,7 +67,7 @@ def strip(l):
     return list(map(lambda x: x.strip(), l))
 
 
-class Rotator(core.CoreScrape):
+class Rotator(CoreScrape):
     """
     This class implements a proxy rotation service for requests.
 
@@ -178,14 +178,14 @@ class Rotator(core.CoreScrape):
             raise TypeError(
                 'Api list invalid. Expected a file with each line being an URL')
 
-        self.__log('Starting collecting proxies. {}'.format(
+        self.log('Starting collecting proxies. {}'.format(
             'Parse func: {}'.format(parse_func) if parse_func is not None
             else 'No parse func.'
         ))
 
         proxies = []
         for api in self.apilist:
-            self.__log('Collecting {}'.format(api))
+            self.log('Collecting {}'.format(api))
 
             a = requests.get(api, headers=self.__get_usr_agent(), timeout=timeout)
             a = list(map(lambda x: x.strip(), a.text.split(sep)))
@@ -194,13 +194,13 @@ class Rotator(core.CoreScrape):
                 proxies += parse_func(a)
             else:
                 proxies += a
-            self.__log('Collected {} proxies from {}'.format(len(a), api))
+            self.log('Collected {} proxies from {}'.format(len(a), api))
 
         ignore = ['', ' ', ':', ' : ', ' :', ': ']
         proxies = list({x for x in proxies if x not in ignore})
         shuffle(proxies)
 
-        self.__log('Queueing {} proxies'.format(len(proxies)))
+        self.log('Queueing {} proxies'.format(len(proxies)))
         for proxy in proxies:
             p = proxlib.Proxy(proxy)
             if p: self.proxies.put(p)
@@ -219,31 +219,31 @@ class Rotator(core.CoreScrape):
             raise TypeError("Param 'event' cannot be 'NoneType' in threading")
 
         if event is not None and \
-           not isinstance(event, threads.corescrape_event.CoreScrapeEvent):
+           not isinstance(event, CoreScrapeEvent):
             raise TypeError(
-                "Param 'event' must be 'threads.corescrape_event.CoreScrapeEvent'")
+                "Param 'event' must be 'CoreScrapeEvent'")
 
-        self.__log('Starting loop for {} [Thread {}]'.format(url, threadid))
+        self.log('Starting loop for {} [Thread {}]'.format(url, threadid))
 
         msgeventset = 'Event set. Breaking loop for {} [Thread {}]'.format(
             url, threadid)
 
         while True:
             if is_set(event):
-                self.__log(msgeventset)
+                self.log(msgeventset)
                 break
 
             page = None
             curproxy = self.__get_proxy()
             if not curproxy:
-                self.__log('No proxy. {}'.format(msgeventset))
+                self.log('No proxy. {}'.format(msgeventset))
                 set_event(event)
                 event.state.set_OUT_OF_PROXIES()
                 break
 
             uagnt = self.__get_usr_agent()
 
-            self.__log('Trying proxy {} [Thread {}]'.format(curproxy, threadid))
+            self.log('Trying proxy {} [Thread {}]'.format(curproxy, threadid))
 
             try:
                 page = requests.get(url, headers=uagnt,
@@ -253,26 +253,22 @@ class Rotator(core.CoreScrape):
                 tries = curproxy.add_up_try()
                 if tries < self.maxtriesproxy:
                     self.proxies.put(curproxy)
-                continue
+                    continue
             except Rotator.conn_exceptions():
                 continue
             except Rotator.comm_exceptions():
                 continue
 
-            if page is None:
-                # guess this should not happen because an exception was probably
-                # thrown and catched before
-                warn('Unexpected return from requests.get')
-                continue
-
-            if not any([ignoremsg in page.text for ignoremsg in self.ignoremsgs]):
+            if page is not None and not any(
+                    [ignoremsg in page.text for ignoremsg in self.ignoremsgs]):
                 # did not find any token pointing the ban of this proxy
-                self.__log('{} collected [Thread {}]'.format(url, threadid),
-                           tmsg='header')
+                self.log('{} collected [Thread {}]'.format(url, threadid),
+                         tmsg='header')
                 curproxy.up_priority()
                 self.proxies.put(curproxy)
                 return page
-            self.__log('Disposing proxy {} [Thread {}]'.format(curproxy, threadid),
-                       tmsg='warning')
+
+            self.log('Disposing proxy {} [Thread {}]'.format(curproxy, threadid),
+                     tmsg='warning')
 
         return None

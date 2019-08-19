@@ -9,11 +9,11 @@ import re
 
 from lxml import html
 
-from .. import core
+from core import CoreScrape
 
 # pylint: disable=invalid-name, too-few-public-methods
 
-class SimpleParser(core.CoreScrape):
+class SimpleParser(CoreScrape):
     """
     Simple Parser.
 
@@ -47,12 +47,12 @@ class SimpleParser(core.CoreScrape):
         """From a requests.model.Response, applies the xpath and retrieves data."""
 
         if not response:
-            self.__log('Parser got invalid response [Thread {}]'.format(threadid))
+            self.log('Parser got invalid response [Thread {}]'.format(threadid))
             return []
 
         hs = html.fromstring(response.text).xpath(self.xpath)
-        self.__log('Collected {} from page using xpath {} [Thread {}]'.format(
+        self.log('Collected {} from page using xpath {} [Thread {}]'.format(
             len(hs), self.xpath, threadid))
         hs = [h for h in hs if self.__apply_bool_rg(h)]
-        self.__log('After regex, {} remaining [Thread {}]'.format(len(hs), threadid))
+        self.log('After regex, {} remaining [Thread {}]'.format(len(hs), threadid))
         return hs

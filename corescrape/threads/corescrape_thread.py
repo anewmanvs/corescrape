@@ -9,12 +9,12 @@ from queue import Queue
 from threading import Thread
 
 from . import corescrape_event
-from .. import core
+from core import CoreScrape
 
 # pylint: disable=invalid-name, too-few-public-methods, multiple-statements
 # pylint: disable=bare-except
 
-class CoreScrapeThread(core.CoreScrape):
+class CoreScrapeThread(CoreScrape):
     """Core Scrape Thread."""
 
     def __init__(self, nthreads, rotator, parser=None, logoperator=None):
@@ -62,28 +62,30 @@ class CoreScrapeThread(core.CoreScrape):
             return True
         return False
 
-    def __iterate(self, threaid, data, *args):
+    def __iterate(self, threadid, data, *args):
         """Do iterations in threads, each one calling the passed code."""
 
-        self.__log('Starting iteration in threaid {}'.format(threaid))
+        self.log('Starting iteration in threadid {}'.format(threadid))
         res = []
         for url in data:
             # the reason here does not matter. If it is set, break out
             if self.event.is_set(): break
             try:
-                page = self.rotator.request(url, self.event, threaid=threaid)
+                page = self.rotator.request(url, self.event, threadid=threadid)
             except:
                 self.event.state.set_ABORT_THREAD()
                 break
+
+            if self.event.is_set(): break
 
             if page is None: continue  # not able to retrieve the page
 
             if self.parser is None:
                 res.append(page)
             else:
-                _res = self.parser.parse(page, threaid=threaid)
+                _res = self.parser.parse(page, threadid=threadid)
                 if not _res: continue  # no info collected, must go on
-                self.__log('URL {} collected. Thread {}'.format(url, threaid))
+                self.log('URL {} collected. Thread {}'.format(url, threadid))
                 res += _res
         return res
 
@@ -126,6 +128,7 @@ class CoreScrapeThread(core.CoreScrape):
             for thread in self.threads:
                 thread.join()
             self.event.clear()
+            self.threads = []
 
     def join_responses(self):
         """Join responses from the threads."""
