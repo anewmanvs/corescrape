@@ -1,8 +1,8 @@
 """
 Simple Parser
 
-Do parsing in a requests.model.Response to retrieve information based on xpaths
-informed.
+Do parsing in a requests.model.Response to retrieve information based on informed
+xpath.
 """
 
 import re
@@ -11,7 +11,7 @@ from lxml import html
 
 from core import CoreScrape
 
-# pylint: disable=invalid-name, too-few-public-methods
+# pylint: disable=invalid-name, multiple-statements
 
 class SimpleParser(CoreScrape):
     """
@@ -36,23 +36,29 @@ class SimpleParser(CoreScrape):
 
         super().__init__(logoperator=logoperator)
 
-    def __apply_bool_rg(self, h):
+    def apply_bool_rg(self, h):
         """Internal controller to apply regex."""
 
         if self.brg:
             return re.search(self.regex, h, self.rgfgs) is not None
         return True
 
-    def parse(self, response, threadid=None):
-        """From a requests.model.Response, applies the xpath and retrieves data."""
+    def valid_response(self, response, threadid=None):
+        """Test if response is valid."""
 
         if not response:
             self.log('Parser got invalid response [Thread {}]'.format(threadid))
-            return []
+            return False
+        return True
+
+    def parse(self, response, threadid=None):
+        """From a requests.model.Response, applies the xpath and retrieves data."""
+
+        if not self.valid_response(response, threadid): return []
 
         hs = html.fromstring(response.text).xpath(self.xpath)
         self.log('Collected {} from page using xpath {} [Thread {}]'.format(
             len(hs), self.xpath, threadid))
-        hs = [h for h in hs if self.__apply_bool_rg(h)]
+        hs = [h for h in hs if self.apply_bool_rg(h)]
         self.log('After regex, {} remaining [Thread {}]'.format(len(hs), threadid))
         return hs
