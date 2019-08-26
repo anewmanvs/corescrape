@@ -86,7 +86,7 @@ class CoreScrapeThread(CoreScrape):
                 _res = self.parser.parse(page, threadid=threadid)
                 if not _res: continue  # no info collected, must go on
                 self.log('URL {} collected. Thread {}'.format(url, threadid))
-                res += _res
+                res.append({url: _res})
         return res
 
     def start_threads(self, to_split_params, *fixed_args):
