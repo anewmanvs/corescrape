@@ -13,23 +13,34 @@ from core import CoreScrape
 
 # pylint: disable=invalid-name
 
+# State "properties" ----
+NONE = 0  # generic property. Means nothing.
+# A sentenced state means there is no recover for the thread controller.
+SENTENCED = 1
+# A traceback state means it should produce traceback on the state is activated.
+TRACEBACK = 2
+# State "properties" ----
+
+IDX, IDX_SENTENCED, IDX_TRACEBACK = range(3)  # Properties indexes
+
 class States(CoreScrape):
     """Feasible thread states."""
 
-    STARTED = 1
-    EXECUTING = 2
-    REFRESH_PROXIES = 3
-    ABORT_THREAD = 4
-    ABORT_USER = 5
-    FINISHED = 6
-    RESTARTING = 7
-    OUT_OF_PROXIES = 8
+    # state = [index, is_sentenced?, produce_traceback?]
+    STARTED = [1, NONE, NONE]
+    EXECUTING = [2, NONE, NONE]
+    REFRESH_PROXIES = [3, NONE, NONE]
+    ABORT_THREAD = [4, SENTENCED, TRACEBACK]
+    ABORT_USER = [5, SENTENCED, NONE]
+    FINISHED = [6, SENTENCED, NONE]
+    RESTARTING = [7, NONE, NONE]
+    OUT_OF_PROXIES = [8, NONE, NONE]
 
     def __init__(self, logoperator=None):
         """Constructor."""
 
-        self.curstate = States.STARTED
-        self.dstates = self.__dfeasible_states()
+        self.curstate = States.STARTED[0]
+        self.dstates, self.properties = self.__dfeasible_states()
         # inverse of dstates
         self.setates = {self.dstates[k]: k for k in self.dstates}
 
@@ -41,16 +52,43 @@ class States(CoreScrape):
         """Dict of feasible states."""
 
         states = {}
+        properties = {}
         for member in getmembers(States):
             var = member[0]
             if not var.startswith('__') and not callable(getattr(self, var)):
-                states.update({var: member[1]})
-        return states
+                states[var] = member[1][IDX]
+                properties[member[1][IDX]] = member[1]
+
+
+        # check if indexes are unique
+        errmsg = (" Please check the class 'States' under 'corescrape.threads"
+                  ".corescrape_event'")
+        val = states.values()
+        if len(val) != len(set(val)):
+            raise ValueError("It appears the states are not unique." + errmsg)
+
+        # check if properties are correctly set
+        sizes = [len(x) for x in properties.values()]
+        if min(sizes) != max(sizes):
+            raise ValueError(
+                "It appears the state properties have different sizes. " + errmsg)
+
+        return states, properties
+
+    def __check_prop(self, prop):
+        """Returns a property from the current state."""
+
+        return self.properties[self.curstate][prop]
+
+    def is_sentenced(self):
+        """Return True if current state is sentenced to end the loop."""
+
+        return self.__check_prop(IDX_SENTENCED) == SENTENCED
 
     def traceback(self):
         """Produce traceback if strictly necessary."""
 
-        if self.curstate == States.ABORT_THREAD:
+        if self.__check_prop(IDX_TRACEBACK) == TRACEBACK:
             print_exc(file=stdout)
 
     def __str__(self):
