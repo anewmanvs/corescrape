@@ -46,7 +46,7 @@ class SimpleParser(CoreScrape):
     def valid_response(self, response, threadid=None):
         """Test if response is valid."""
 
-        if not response:
+        if response is None or not response.text:
             self.log('Parser got invalid response [Thread {}]'.format(threadid))
             return False
         return True
