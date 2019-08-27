@@ -243,7 +243,8 @@ class Rotator(CoreScrape):
 
             uagnt = self.__get_usr_agent()
 
-            self.log('Trying proxy {} [Thread {}]'.format(curproxy, threadid))
+            self.log('Trying proxy {} and agent {} [Thread {}]'.format(
+                curproxy, list(uagnt.values())[0], threadid))
 
             try:
                 page = requests.get(url, headers=uagnt,
@@ -262,8 +263,7 @@ class Rotator(CoreScrape):
             if page is not None and not any(
                     [ignoremsg in page.text for ignoremsg in self.ignoremsgs]):
                 # did not find any token pointing the ban of this proxy
-                self.log('{} collected [Thread {}]'.format(url, threadid),
-                         tmsg='header')
+                self.log('{} collected [Thread {}]'.format(url, threadid))
                 curproxy.up_priority()
                 self.proxies.put(curproxy)
                 return page
