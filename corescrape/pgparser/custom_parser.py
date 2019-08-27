@@ -62,4 +62,4 @@ class CustomPageParser(sp.SimpleParser):
             self.log('Collected {} info for key {} [Thread {}]'.format(
                 len(hs), key, threadid))
             res[key] = hs
-        return res
+        return res if any(res.values()) else {}
