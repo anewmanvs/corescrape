@@ -5,7 +5,7 @@ IMPORTANT:
 * Make sure you ALWAYS use ELITE proxies, otherwise you are exposed
 """
 
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, too-many-instance-attributes
 
 class Proxy:
     """Defines a proxy and its useful methods"""
@@ -13,16 +13,24 @@ class Proxy:
     def __init__(self, address):
         """Constructor."""
 
+        self.ready = False  # should always be the first
+
         self.address = address
         self.numtries = 0
         try:
             self.__ip, self.__port = address.split(':')
-            self.ready = True
         except ValueError:
             print(address)
-            self.ready = False
+            raise
 
         self.priority = 10
+        # Maximum number of hits on a row. After this, the up_priority will
+        # instead be a 'down_priority' to avoid reusing too much the same proxy.
+        self.max_on_a_row = 3
+        self.on_a_row = 0  # number of hits on a row
+
+
+        self.ready = True  # should always be the last
 
     def requests_formatted(self):
         """Returns the proxy in requests formatting."""
@@ -36,16 +44,23 @@ class Proxy:
         self.down_priority()
         return self.numtries
 
-    def up_priority(self):
+    def up_priority(self, weight=1):
         """Set higher priority to this proxy"""
 
-        if self.priority > 0:
-            self.priority -= 1
+        if self.on_a_row > self.max_on_a_row:
+            # Number of maximum hits reached. The informed weight is ignored here
+            self.down_priority(self.max_on_a_row + 1)
+            return
 
-    def down_priority(self):
+        if self.priority > 0:
+            self.priority -= weight
+            self.on_a_row += 1
+
+    def down_priority(self, weight=1):
         """Set lower priority to this proxy"""
 
-        self.priority += 1
+        self.priority += weight
+        self.on_a_row = 0
 
     def ip(self):
         """Returns the IP"""
