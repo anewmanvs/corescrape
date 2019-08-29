@@ -260,13 +260,24 @@ class Rotator(CoreScrape):
             except Rotator.comm_exceptions():
                 continue
 
-            if page is not None and not any(
-                    [ignoremsg in page.text for ignoremsg in self.ignoremsgs]):
-                # did not find any token pointing the ban of this proxy
-                self.log('{} collected [Thread {}]'.format(url, threadid))
-                curproxy.up_priority()
-                self.proxies.put(curproxy)
-                return page
+            if page is not None:
+                if page.status_code == 403:
+                    # Forbidden code. It does not mean this proxy is useless, but
+                    # for now the provider detected too much requests were made
+                    # by it. We should down its priority and hope in the future,
+                    # when it is used again, the provider whitelisted it.
+                    self.log('Proxy {} forbidden (403) [Thread {}]'.format(
+                        curproxy, threadid))
+                    curproxy.down_priority(10)  # 10 points down for priority
+                    self.proxies.put(curproxy)
+                    continue
+
+                if not any([ignmsg in page.text for ignmsg in self.ignoremsgs]):
+                    # did not find any token pointing the ban of this proxy
+                    self.log('{} collected [Thread {}]'.format(url, threadid))
+                    curproxy.up_priority()
+                    self.proxies.put(curproxy)
+                    return page
 
             self.log('Disposing proxy {} [Thread {}]'.format(curproxy, threadid),
                      tmsg='warning')
