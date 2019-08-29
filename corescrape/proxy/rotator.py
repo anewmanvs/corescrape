@@ -40,7 +40,6 @@ IMPORTANT:
 from os.path import dirname, abspath
 from random import choice, shuffle
 from queue import PriorityQueue
-from warnings import warn
 
 import requests
 
@@ -48,18 +47,7 @@ from . import proxy as proxlib
 from core import CoreScrape
 from threads.corescrape_event import CoreScrapeEvent
 
-# pylint: disable=too-many-instance-attributes
-
-def is_set(event):
-    """Check if a valid event is set."""
-
-    return event is not None and event.is_set()
-
-def set_event(event):
-    """Set a valid event."""
-
-    if event is not None:
-        event.set()
+# pylint: disable=too-many-instance-attributes, too-many-branches
 
 def strip(l):
     """Strip strings from a list."""
@@ -218,10 +206,11 @@ class Rotator(CoreScrape):
         if threadid is not None and event is None:
             raise TypeError("Param 'event' cannot be 'NoneType' in threading")
 
-        if event is not None and \
-           not isinstance(event, CoreScrapeEvent):
-            raise TypeError(
-                "Param 'event' must be 'CoreScrapeEvent'")
+        if event is None:
+            event = CoreScrapeEvent()
+
+        if not isinstance(event, CoreScrapeEvent):
+            raise TypeError("Param 'event' must be 'CoreScrapeEvent'")
 
         self.log('Starting loop for {} [Thread {}]'.format(url, threadid))
 
@@ -229,7 +218,7 @@ class Rotator(CoreScrape):
             url, threadid)
 
         while True:
-            if is_set(event):
+            if event.is_set():
                 self.log(msgeventset)
                 break
 
@@ -237,7 +226,6 @@ class Rotator(CoreScrape):
             curproxy = self.__get_proxy()
             if not curproxy:
                 self.log('No proxy. {}'.format(msgeventset))
-                set_event(event)
                 event.state.set_OUT_OF_PROXIES()
                 break
 
