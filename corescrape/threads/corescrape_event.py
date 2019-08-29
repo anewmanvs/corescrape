@@ -19,26 +19,29 @@ NONE = 0  # generic property. Means nothing.
 SENTENCED = 1
 # A traceback state means it should produce traceback on the state is activated.
 TRACEBACK = 2
+# A set event state means the state will set the event
+SETEVENT = 3
 # State "properties" ----
 
-IDX, IDX_SENTENCED, IDX_TRACEBACK = range(3)  # Properties indexes
+IDX, IDX_SENTENCED, IDX_TRACEBACK, IDX_SETEVENT = range(4)  # Properties indexes
 
 class States(CoreScrape):
     """Feasible thread states."""
 
-    # state = [index, is_sentenced?, produce_traceback?]
-    STARTED = [1, NONE, NONE]
-    EXECUTING = [2, NONE, NONE]
-    REFRESH_PROXIES = [3, NONE, NONE]
-    ABORT_THREAD = [4, SENTENCED, TRACEBACK]
-    ABORT_USER = [5, SENTENCED, NONE]
-    FINISHED = [6, SENTENCED, NONE]
-    RESTARTING = [7, NONE, NONE]
-    OUT_OF_PROXIES = [8, NONE, NONE]
+    # state = [index, is_sentenced?, produce_traceback?, set_event?]
+    STARTED = [1, NONE, NONE, NONE]
+    EXECUTING = [2, NONE, NONE, NONE]
+    REFRESH_PROXIES = [3, NONE, NONE, SETEVENT]
+    ABORT_THREAD = [4, SENTENCED, TRACEBACK, SETEVENT]
+    ABORT_USER = [5, SENTENCED, NONE, SETEVENT]
+    FINISHED = [6, SENTENCED, NONE, NONE]
+    RESTARTING = [7, NONE, NONE, NONE]
+    OUT_OF_PROXIES = [8, NONE, NONE, SETEVENT]
 
-    def __init__(self, logoperator=None):
+    def __init__(self, event, logoperator=None):
         """Constructor."""
 
+        self.event = event
         self.curstate = States.STARTED[0]
         self.dstates, self.properties = self.__dfeasible_states()
         # inverse of dstates
@@ -79,6 +82,15 @@ class States(CoreScrape):
         """Returns a property from the current state."""
 
         return self.properties[self.curstate][prop]
+
+    def set_event(self):
+        """
+        Set an event to communicate interruptioms between threads in case
+        this applies to the current state.
+        """
+
+        if self.__check_prop(IDX_SETEVENT) == SETEVENT:
+            self.event.set()
 
     def is_sentenced(self):
         """Return True if current state is sentenced to end the loop."""
@@ -126,6 +138,7 @@ class States(CoreScrape):
             if kstate in self.dstates.keys():
                 self.curstate = self.dstates[kstate]
                 self.log('State changed to {}'.format(self))
+                self.set_event()
                 self.traceback()
                 return True
             return False
@@ -140,4 +153,4 @@ class CoreScrapeEvent(Event):
         """Constructor."""
 
         super().__init__()  # this class is an event
-        self.state = States(logoperator=logoperator)  # but it does have states
+        self.state = States(self, logoperator=logoperator)  # but it has states
