@@ -130,7 +130,7 @@ class States(CoreScrape):
         setattr(self, 'is_{}'.format(kstate), _is)
 
     def __add_set_method(self, kstate):
-        """Dynamically adds an 'set_' method to set the current state."""
+        """Dynamically adds a 'set_' method to set the current state."""
 
         def _set():
             """Dynamic set current state."""
