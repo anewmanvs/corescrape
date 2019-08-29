@@ -65,27 +65,39 @@ class CoreScrapeThread(CoreScrape):
     def __iterate(self, threadid, data, *args):
         """Do iterations in threads, each one calling the passed code."""
 
-        self.log('Starting iteration in threadid {}'.format(threadid))
+        # pylint: disable=unused-argument
+
+        self.log('Starting iteration in threadid {} for {} items'.format(
+            threadid, len(data)))
         res = []
         for url in data:
             # the reason here does not matter. If it is set, break out
             if self.event.is_set(): break
+
             try:
                 page = self.rotator.request(url, self.event, threadid=threadid)
             except:
                 self.event.state.set_ABORT_THREAD()
                 break
 
-            if self.event.is_set(): break
-
             if page is None: continue  # not able to retrieve the page
 
             if self.parser is None:
                 res.append(page)
+                self.log('Storing whole response for {}. Thread {}'.format(
+                    url, threadid))
+            elif page.status_code == 404:
+                self.log('URL {} returned a 404. Thread {}'.format(url, threadid),
+                         tmsg='warning')
+                res.append({url: None})  # points it was collected but useless
             else:
                 _res = self.parser.parse(page, threadid=threadid)
-                if not _res: continue  # no info collected, must go on
-                self.log('URL {} collected. Thread {}'.format(url, threadid))
+                if not _res:
+                    self.log('URL {} could not be parsed. Thread {}'.format(
+                        url, threadid))
+                    continue  # no info collected, must go on
+                self.log('URL {} collected. Thread {}'.format(url, threadid),
+                         tmsg='header')
                 res.append({url: _res})
         return res
 
@@ -103,6 +115,8 @@ class CoreScrapeThread(CoreScrape):
 
         if not all(test_if_urls(to_split_params)):
             raise ValueError('List of strings must begin with protocol')
+
+        self.log('Starting threads for {} items'.format(len(to_split_params)))
 
         self.threads = []
         self.event.state.set_EXECUTING()
@@ -123,7 +137,6 @@ class CoreScrapeThread(CoreScrape):
             self.event.wait()
         except KeyboardInterrupt:
             self.event.state.set_ABORT_USER()
-            self.event.set()
         finally:
             for thread in self.threads:
                 thread.join()
@@ -139,5 +152,15 @@ class CoreScrapeThread(CoreScrape):
 
         res = []
         while not self.queue.empty():
-            res.append(self.queue.get())
+            res += self.queue.get()
         return res
+
+    def is_sentenced(self):
+        """
+        Informs if the thread controller is sentenced due to the last event state.
+        """
+
+        sentenced = self.event.state.is_sentenced()
+        if sentenced:
+            self.event.state.set_FINISHED()
+        return sentenced
