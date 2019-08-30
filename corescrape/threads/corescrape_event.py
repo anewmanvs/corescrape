@@ -35,7 +35,7 @@ class States(CoreScrape):
     ABORT_THREAD = [4, SENTENCED, TRACEBACK, SETEVENT]
     ABORT_USER = [5, SENTENCED, NONE, SETEVENT]
     FINISHED = [6, SENTENCED, NONE, NONE]
-    RESTARTING = [7, NONE, NONE, NONE]
+    TIMEOUT = [7, NONE, NONE, SETEVENT]
     OUT_OF_PROXIES = [8, NONE, NONE, SETEVENT]
 
     def __init__(self, event, logoperator=None):
