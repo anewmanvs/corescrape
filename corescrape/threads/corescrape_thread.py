@@ -22,7 +22,39 @@ def alarm_handler(signum, frame):
     raise CoreScrapeTimeout
 
 class CoreScrapeThread(CoreScrape):
-    """Core Scrape Thread."""
+    """
+    Core Scrape Thread.
+
+    Uses multiples threads to request pages and parse its content.
+    A valid rotator must be passed to produce each request using a new proxy
+    and make it less likely to be red flagged as a bot or scrapper by internet
+    service providers. The user could pass a parser (CoreScrape class or custom
+    class with a 'parse' method) to parse the response and avoid having the need
+    to store the whole page for postprocessing.
+    This controller also gives the user the option to set up a timer, in seconds,
+    to raise a timeout. The timer is set if the user provided an integer to param
+    'timeout' during 'start_threads' method processing. The timer is unset in
+    'wait_for_threads' method.
+
+    Params:
+        nthreads: int. Desired number of threads. Once the method 'start_threads' is
+            called, the controller will try to split the given input into chunks of
+            number 'nthreads'. If it is not possible to split in 'nthreads' chunks,
+            then the actual number of threads is available in 'actualnthreads'.
+        rotator: corescrape.proxy.Rotator (preferably). Uses this rotator to make
+            requests using different proxies and user agents. There is always the
+            possibility to pass the 'requests' module to this parameter, but that is
+            not advised as the control of proxies and user-agents is not automatic.
+        parser: corescrape.pgparser.SimpleParser, based on or None. Uses this to
+            parse the page content and extract the useful information, making it
+            less memory expensive. If no argument is given, the thread controller
+            will return a list of the full pages collected.
+        timeout: int or None. Time in seconds to configure the timeout process.
+            Set up a timer to raise an event and stop the threads once the time is
+            reached.
+        logoperator: corescrape.logs.LogOperator or None. Log to be fed with process
+            runtime information.
+    """
 
     def __init__(self, nthreads, rotator, parser=None, timeout=None,
                  logoperator=None):
@@ -86,7 +118,7 @@ class CoreScrapeThread(CoreScrape):
             signal.signal(signal.SIGALRM, alarm_handler)
             signal.alarm(self.timeout)
             self.log('CoreScrapeThread set the timeout for {} seconds.'.format(
-                self.timeout), tmsg='warning')
+                self.timeout), tmsg='info')
             self.timeoutset = True
 
     def __disarm_timeout(self):
@@ -94,7 +126,7 @@ class CoreScrapeThread(CoreScrape):
         if self.timeoutset:
             self.timeoutset = False
             signal.alarm(0)
-            self.log('CoreScrapeThread disarmed the timeout.', tmsg='warning')
+            self.log('CoreScrapeThread disarmed the timeout.', tmsg='info')
 
     def __iterate(self, threadid, data, *args):
         """Do iterations in threads, each one calling the passed code."""

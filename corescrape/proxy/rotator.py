@@ -18,8 +18,8 @@ Usually when dealing with public domain IPs or non residential IPs you get block
 oftenly as most proxy users do not take necessary precautions to avoid being
 detected. This rotator uses a list of 'reserved messages' to identify when an IP is
 blocked. Each domain will provide a singular way to reject your request: some give
-a 404 code, others (majority) will return a HTML page with messages informing the
-deny. The list of 'reserved messages' should be store in the file `ignoremsgs.txt`.
+a 404 code, others will return a HTML page with messages informing the deny.
+The list of 'reserved messages' should be store in the file `ignoremsgs.txt`.
 This file is critical and must be present with each line containing a message that,
 if present in the HTML page, tells the rotator to dispose that proxy and carry on.
 More sophisticated pages may return a captcha.
@@ -67,9 +67,14 @@ class Rotator(CoreScrape):
     Initially all proxies will be listed as normal but as their score change,
     one proxy can be up or downgraded to high/low priority, respectively.
 
+    If no param is informed, the method will use default values. It is recommended
+    to inform at least params 'confpath' and 'logoperator'.
+
     Params:
+        confpath: str indicating where the configuration files are stored
         maxtriesproxy: int indicating the max number of tries one proxy will get
         timeout: int pointing max timeout used in recurrent requests
+        logoperator: corescrape.logs.LogOperator to manage the logs
     """
 
     def __init__(self, confpath=None, maxtriesproxy=2, timeout=3, logoperator=None):
