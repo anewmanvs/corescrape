@@ -85,7 +85,7 @@ class States(CoreScrape):
 
     def set_event(self):
         """
-        Set an event to communicate interruptioms between threads in case
+        Set an event to communicate interruptions between threads in case
         this applies to the current state.
         """
 
