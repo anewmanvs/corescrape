@@ -4,27 +4,40 @@ Core Scrape Threading
 Thread control for this package.
 """
 
+import signal
 from warnings import warn
 from queue import Queue
 from threading import Thread
 
 from . import corescrape_event
 from core import CoreScrape
+from core.exceptions import CoreScrapeTimeout
 
 # pylint: disable=invalid-name, too-few-public-methods, multiple-statements
-# pylint: disable=bare-except
+# pylint: disable=bare-except, too-many-arguments, too-many-instance-attributes
+
+def alarm_handler(signum, frame):
+    """Handles the alarm."""
+
+    raise CoreScrapeTimeout
 
 class CoreScrapeThread(CoreScrape):
     """Core Scrape Thread."""
 
-    def __init__(self, nthreads, rotator, parser=None, logoperator=None):
+    def __init__(self, nthreads, rotator, parser=None, timeout=None,
+                 logoperator=None):
         """Constructor."""
+
+        if timeout is not None and not isinstance(timeout, int):
+            raise TypeError("Param. 'timeout' must be 'int' or 'NoneType'")
 
         # inputs
         self.nthreads = nthreads
         self.actualnthreads = nthreads
         self.rotator = rotator
         self.parser = parser
+        self.timeout = timeout  # CAREFUL! This is not timeout for requests
+        self.timeoutset = False
 
         # control attrs
         self.queue = Queue()
@@ -61,6 +74,27 @@ class CoreScrapeThread(CoreScrape):
             )
             return True
         return False
+
+    def __set_timeout(self):
+        """
+        If seconds for timeout were informed in the constructor, will set an alarm
+        for timeout. Once timeout is reached, the iteration is broken and return
+        as expected.
+        """
+
+        if self.timeout:
+            signal.signal(signal.SIGALRM, alarm_handler)
+            signal.alarm(self.timeout)
+            self.log('CoreScrapeThread set the timeout for {} seconds.'.format(
+                self.timeout), tmsg='warning')
+            self.timeoutset = True
+
+    def __disarm_timeout(self):
+        """Turn off the timeout."""
+        if self.timeoutset:
+            self.timeoutset = False
+            signal.alarm(0)
+            self.log('CoreScrapeThread disarmed the timeout.', tmsg='warning')
 
     def __iterate(self, threadid, data, *args):
         """Do iterations in threads, each one calling the passed code."""
@@ -128,6 +162,9 @@ class CoreScrapeThread(CoreScrape):
             )
             thread.start()
             self.threads.append(thread)
+
+        self.__set_timeout()
+
         return True
 
     def wait_for_threads(self):
@@ -137,7 +174,10 @@ class CoreScrapeThread(CoreScrape):
             self.event.wait()
         except KeyboardInterrupt:
             self.event.state.set_ABORT_USER()
+        except CoreScrapeTimeout:
+            self.event.state.set_TIMEOUT()
         finally:
+            self.__disarm_timeout()
             for thread in self.threads:
                 thread.join()
             self.event.clear()
