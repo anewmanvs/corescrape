@@ -7,6 +7,8 @@ IMPORTANT:
 
 # pylint: disable=invalid-name, too-many-instance-attributes
 
+from core.exceptions import CoreScrapeInvalidProxy
+
 class Proxy:
     """Defines a proxy and its useful methods"""
 
@@ -20,8 +22,7 @@ class Proxy:
         try:
             self.__ip, self.__port = address.split(':')
         except ValueError:
-            print(address)
-            raise
+            raise CoreScrapeInvalidProxy
 
         self.priority = 10
         # Maximum number of hits on a row. After this, the up_priority will
