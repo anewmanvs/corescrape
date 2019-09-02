@@ -45,6 +45,7 @@ import requests
 
 from . import proxy as proxlib
 from core import CoreScrape
+from core.exceptions import CoreScrapeInvalidProxy
 from threads.corescrape_event import CoreScrapeEvent
 
 # pylint: disable=too-many-instance-attributes, too-many-branches
@@ -195,8 +196,11 @@ class Rotator(CoreScrape):
 
         self.log('Queueing {} proxies'.format(len(proxies)))
         for proxy in proxies:
-            p = proxlib.Proxy(proxy)
-            if p: self.proxies.put(p)
+            try:
+                p = proxlib.Proxy(proxy)
+                if p: self.proxies.put(p)
+            except CoreScrapeInvalidProxy:
+                continue
 
     def request(self, url, event=None, threadid=None):
         """
