@@ -20,3 +20,11 @@ class CoreScrapeTimeout(CoreScrapeException):
         """Constructor."""
 
         super().__init__('Timeout limit reached')
+
+class CoreScrapeInvalidProxy(CoreScrapeException):
+    """Invalid proxy found."""
+
+    def __init__(self):
+        """Constructor."""
+
+        super().__init__('Invalid proxy')
