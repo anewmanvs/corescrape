@@ -130,9 +130,11 @@ class CoreScrapeThread(CoreScrape):
             self.log('CoreScrapeThread disarmed the timeout.', tmsg='info')
 
     def __check_am_i_the_last(self):
-        """Check if this thread is the last and if should set an event."""
+        """Check if this thread is the last and if it should set an event."""
 
-        if self.queue.qsize() == 1:
+        condition = self.queue.qsize() + 1 >= self.actualnthreads
+        condition = condition and self.event.state.is_EXECUTING()
+        if condition:
             self.event.state.set_DUTY_FREE()
 
     def __iterate(self, threadid, data, *args):
