@@ -19,6 +19,7 @@ class LogOperator:
     def __init__(self, file=None, verbose=False):
         """Constructor."""
 
+        self.open = False
         self.filename = file if file else abspath(dirname(__file__)) + '/log.txt'
         self.__file = open(self.filename, 'a+')
         self.verbose = verbose
