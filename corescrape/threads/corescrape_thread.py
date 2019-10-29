@@ -123,10 +123,17 @@ class CoreScrapeThread(CoreScrape):
 
     def __disarm_timeout(self):
         """Turn off the timeout."""
+
         if self.timeoutset:
             self.timeoutset = False
             signal.alarm(0)
             self.log('CoreScrapeThread disarmed the timeout.', tmsg='info')
+
+    def __check_am_i_the_last(self):
+        """Check if this thread is the last and if should set an event."""
+
+        if self.queue.qsize() == 1:
+            self.event.state.set_DUTY_FREE()
 
     def __iterate(self, threadid, data, *args):
         """Do iterations in threads, each one calling the passed code."""
@@ -165,6 +172,8 @@ class CoreScrapeThread(CoreScrape):
                 self.log('URL {} collected. Thread {}'.format(url, threadid),
                          tmsg='header')
                 res.append({url: _res})
+
+        self.__check_am_i_the_last()
         return res
 
     def start_threads(self, to_split_params, *fixed_args):
