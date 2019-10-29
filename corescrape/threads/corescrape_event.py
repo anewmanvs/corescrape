@@ -37,6 +37,7 @@ class States(CoreScrape):
     FINISHED = [6, SENTENCED, NONE, NONE]
     TIMEOUT = [7, NONE, NONE, SETEVENT]
     OUT_OF_PROXIES = [8, NONE, NONE, SETEVENT]
+    DUTY_FREE = [9, NONE, NONE, SETEVENT]
 
     def __init__(self, event, logoperator=None):
         """Constructor."""
