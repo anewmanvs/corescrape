@@ -40,6 +40,7 @@ IMPORTANT:
 from os.path import dirname, abspath
 from random import choice, shuffle
 from queue import PriorityQueue
+from time import sleep
 
 import requests
 
@@ -130,7 +131,7 @@ class Rotator(CoreScrape):
 
         _excp = requests.exceptions
 
-        return (_excp.ProxyError, _excp.Timeout)
+        return (_excp.ProxyError, _excp.Timeout, _excp.TooManyRedirects)
 
     @staticmethod
     def conn_exceptions():
@@ -148,7 +149,15 @@ class Rotator(CoreScrape):
 
         return _excp.ChunkedEncodingError
 
-    def retrieve(self, sep='\n', parse_func=None, timeout=30):
+    @staticmethod
+    def any_exception():
+        """Returns any exception from this class."""
+
+        return Rotator.proxy_exceptions() + Rotator.conn_exceptions() + \
+               Rotator.comm_exceptions()
+
+    def retrieve(self, sep='\n', parse_func=None, timeout=30, 
+                 retry=None, waitbtwn=30):
         """
         Retrieve the content from the APIs.
 
@@ -163,6 +172,9 @@ class Rotator(CoreScrape):
                 into proxies formatted like IP:PORT
             parse_fun: python function that returns a list
             timeout: int max time in seconds to wait for a response
+            retry: none or int pointing if the process should retry the a fail
+                occurs. If int, the provided number amounts to retry limits.
+            waitbtwn: int defining the time in seconds to wait between retries.
 
         Returns:
             None
@@ -181,7 +193,18 @@ class Rotator(CoreScrape):
         for api in self.apilist:
             self.log('Collecting {}'.format(api))
 
-            a = requests.get(api, headers=self.__get_usr_agent(), timeout=timeout)
+            if retry is None or retry < 1:
+                retry = 1
+
+            for _ in range(retry):
+                try:
+                    a = requests.get(api, headers=self.__get_usr_agent(),
+                                     timeout=timeout)
+                    break
+                except Rotator.any_exception():
+                    sleep(waitbtwn)
+                    continue
+
             a = list(map(lambda x: x.strip(), a.text.split(sep)))
 
             if callable(parse_func):
