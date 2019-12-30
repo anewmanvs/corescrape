@@ -30,7 +30,6 @@ class Proxy:
         self.max_on_a_row = 3
         self.on_a_row = 0  # number of hits on a row
 
-
         self.ready = True  # should always be the last
 
     def requests_formatted(self):
